@@ -1,0 +1,113 @@
+// Инициализация Telegram WebApp
+const tg = window.Telegram?.WebApp;
+if (tg) {
+  tg.ready();
+  tg.expand();
+  tg.setHeaderColor('#17212b');
+}
+
+// Программа тренировки
+const WORKOUT = [
+  { name: 'Приседания со штангой', detail: '4 подхода × 8–10 повторений', rest: 90 },
+  { name: 'Жим лёжа', detail: '4 подхода × 8–10 повторений', rest: 90 },
+  { name: 'Становая тяга', detail: '3 подхода × 6–8 повторений', rest: 120 },
+  { name: 'Жим стоя (жим над головой)', detail: '3 подхода × 10 повторений', rest: 75 },
+  { name: 'Тяга штанги в наклоне', detail: '3 подхода × 10 повторений', rest: 75 },
+  { name: 'Подтягивания', detail: '3 подхода × максимум', rest: 75 },
+  { name: 'Отжимания на брусьях', detail: '3 подхода × 10–12 повторений', rest: 60 },
+  { name: 'Планка', detail: '3 подхода × 60 секунд', rest: 45 },
+];
+
+const STORAGE_KEY = 'fullbody_progress_v1';
+let done = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+
+const listEl = document.getElementById('exerciseList');
+const progressFill = document.getElementById('progressFill');
+const doneCountEl = document.getElementById('doneCount');
+const totalCountEl = document.getElementById('totalCount');
+const timerEl = document.getElementById('timer');
+const timerValueEl = document.getElementById('timerValue');
+const skipBtn = document.getElementById('skipTimer');
+const resetBtn = document.getElementById('resetBtn');
+
+let timerInterval = null;
+
+function render() {
+  listEl.innerHTML = '';
+  WORKOUT.forEach((ex, i) => {
+    const isDone = done.includes(i);
+    const div = document.createElement('div');
+    div.className = 'exercise' + (isDone ? ' done' : '');
+    div.innerHTML = `
+      <input type="checkbox" ${isDone ? 'checked' : ''} data-index="${i}" />
+      <div class="info">
+        <div class="name">${ex.name}</div>
+        <div class="detail">${ex.detail}</div>
+      </div>
+    `;
+    listEl.appendChild(div);
+  });
+
+  listEl.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', onToggle);
+  });
+
+  updateProgress();
+}
+
+function onToggle(e) {
+  const idx = Number(e.target.dataset.index);
+  if (e.target.checked) {
+    if (!done.includes(idx)) done.push(idx);
+    startTimer(WORKOUT[idx].rest);
+  } else {
+    done = done.filter(i => i !== idx);
+  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(done));
+  render();
+}
+
+function updateProgress() {
+  const total = WORKOUT.length;
+  const count = done.length;
+  doneCountEl.textContent = count;
+  totalCountEl.textContent = total;
+  progressFill.style.width = (count / total * 100) + '%';
+
+  if (tg && count === total) {
+    tg.HapticFeedback?.notificationOccurred('success');
+  }
+}
+
+function startTimer(seconds) {
+  let left = seconds;
+  timerValueEl.textContent = left;
+  timerEl.classList.remove('hidden');
+  tg?.HapticFeedback?.impactOccurred('medium');
+
+  clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    left--;
+    timerValueEl.textContent = left;
+    if (left <= 0) stopTimer(true);
+  }, 1000);
+}
+
+function stopTimer(finished = false) {
+  clearInterval(timerInterval);
+  timerInterval = null;
+  timerEl.classList.add('hidden');
+  if (finished) tg?.HapticFeedback?.notificationOccurred('success');
+}
+
+skipBtn.addEventListener('click', () => stopTimer());
+
+resetBtn.addEventListener('click', () => {
+  if (confirm('Сбросить весь прогресс?')) {
+    done = [];
+    localStorage.setItem(STORAGE_KEY, '[]');
+    render();
+  }
+});
+
+render();
